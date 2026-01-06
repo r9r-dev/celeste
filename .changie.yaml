@@ -10,7 +10,7 @@ kinds:
     - label: Added
       auto: minor
     - label: Changed
-      auto: minor
+      auto: patch
     - label: Deprecated
       auto: minor
     - label: Removed
