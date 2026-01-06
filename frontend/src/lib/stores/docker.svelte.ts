@@ -1,5 +1,5 @@
 import { api } from '$lib/api/client';
-import { wsClient } from '$lib/api/websocket';
+import { wsClient } from '$lib/api/websocket.svelte';
 import type {
 	ContainerInfo,
 	ContainerStats,

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"aperture-science-network/internal/api/handlers"
 	"aperture-science-network/internal/compose"
 	"aperture-science-network/internal/docker"
+	"aperture-science-network/internal/version"
 	"aperture-science-network/internal/ws"
 )
 
@@ -51,7 +53,26 @@ func NewServer(stacksPath, staticPath string) *Server {
 }
 
 func (s *Server) setupMiddleware() {
-	s.router.Use(gin.Logger())
+	// Custom logger that only logs errors (non-2xx responses)
+	s.router.Use(func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+
+		c.Next()
+
+		// Only log non-2xx responses
+		status := c.Writer.Status()
+		if status < 200 || status >= 300 {
+			latency := time.Since(start)
+			log.Printf("[ERROR] %d | %v | %s %s | %s",
+				status,
+				latency,
+				c.Request.Method,
+				path,
+				c.Errors.String(),
+			)
+		}
+	})
 	s.router.Use(gin.Recovery())
 
 	s.router.Use(cors.New(cors.Config{
@@ -67,7 +88,10 @@ func (s *Server) setupMiddleware() {
 func (s *Server) setupRoutes() {
 	// Health check
 	s.router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"version": version.Version,
+		})
 	})
 
 	// API routes

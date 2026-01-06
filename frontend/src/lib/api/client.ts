@@ -7,12 +7,19 @@ import type {
 	NetworkInfo,
 	ImageInfo,
 	StatusResponse,
+	HealthResponse,
 	ComposeFileResponse,
 	LogsResponse,
 	ApiError as ApiErrorResponse
 } from './types';
 
-const API_BASE = 'http://localhost:8080/api';
+// Determine API base URL based on environment
+const getApiBase = (): string => {
+	if (typeof window === 'undefined') return 'http://localhost:8080/api';
+	return `${window.location.origin}/api`;
+};
+
+const API_BASE = getApiBase();
 
 class ApiError extends Error {
 	constructor(
@@ -47,8 +54,9 @@ export async function getSystemStats(): Promise<SystemStats> {
 	return request<SystemStats>('/stats');
 }
 
-export async function getHealth(): Promise<{ status: string }> {
-	const response = await fetch('http://localhost:8080/health');
+export async function getHealth(): Promise<HealthResponse> {
+	const baseUrl = typeof window === 'undefined' ? 'http://localhost:8080' : window.location.origin;
+	const response = await fetch(`${baseUrl}/health`);
 	return response.json();
 }
 

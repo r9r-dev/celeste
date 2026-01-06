@@ -98,6 +98,11 @@ export interface ApiError {
 	error: string;
 }
 
+export interface HealthResponse {
+	status: string;
+	version: string;
+}
+
 export interface StatusResponse {
 	status: string;
 }

@@ -1,15 +1,25 @@
 <script lang="ts">
 	import '../app.css';
+	import { api } from '$lib/api/client';
 
 	let { children } = $props();
 
 	let currentTime = $state(new Date());
+	let version = $state('...');
 
 	$effect(() => {
 		const interval = setInterval(() => {
 			currentTime = new Date();
 		}, 1000);
 		return () => clearInterval(interval);
+	});
+
+	$effect(() => {
+		api.getHealth().then((health) => {
+			version = health.version;
+		}).catch(() => {
+			version = '?';
+		});
 	});
 
 	const formatTime = (date: Date) => {
@@ -48,7 +58,7 @@
 				</svg>
 				<span class="logo-text">APERTURE SCIENCE NETWORK</span>
 			</div>
-			<span class="version">v0.1.0</span>
+			<span class="version">v{version}</span>
 		</div>
 		<div class="header-right">
 			<div class="system-time">

@@ -1,4 +1,4 @@
-import { wsClient } from '$lib/api/websocket';
+import { wsClient } from '$lib/api/websocket.svelte';
 import type { SystemStats } from '$lib/api/types';
 
 // Default stats for initial state
@@ -19,7 +19,6 @@ const defaultStats: SystemStats = {
 
 function createSystemStore() {
 	let stats = $state<SystemStats>(defaultStats);
-	let connected = $state(false);
 	let error = $state<string | null>(null);
 	let unsubscribe: (() => void) | null = null;
 
@@ -31,11 +30,6 @@ function createSystemStore() {
 			stats = payload;
 			error = null;
 		});
-
-		// Track connection state
-		$effect(() => {
-			connected = wsClient.connected;
-		});
 	}
 
 	function disconnect() {
@@ -44,7 +38,6 @@ function createSystemStore() {
 			unsubscribe = null;
 		}
 		wsClient.disconnect();
-		connected = false;
 	}
 
 	return {
@@ -52,7 +45,7 @@ function createSystemStore() {
 			return stats;
 		},
 		get connected() {
-			return connected;
+			return wsClient.connected;
 		},
 		get error() {
 			return error;

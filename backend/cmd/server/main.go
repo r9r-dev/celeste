@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"aperture-science-network/internal/api"
+	"aperture-science-network/internal/version"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 
 	server := api.NewServer(stacksPath, staticPath)
 
-	log.Printf("Aperture Science Network starting on port %s", port)
+	log.Printf("Aperture Science Network v%s starting on port %s", version.Version, port)
 	log.Printf("Stacks path: %s", stacksPath)
 
 	if err := server.Run(":" + port); err != nil {
