@@ -1,19 +1,20 @@
 # Stage 1: Build frontend
-FROM node:22-alpine AS frontend-builder
+FROM oven/bun:1.3.5-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy package files
-COPY frontend/package*.json ./
+# Copy package files and lockfile
+COPY frontend/package.json frontend/bun.lockb ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies with cache
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 # Copy frontend source
 COPY frontend/ ./
 
 # Build frontend
-RUN npm run build
+RUN bun run build
 
 # Stage 2: Build backend
 FROM golang:1.25-alpine AS backend-builder
@@ -26,8 +27,9 @@ RUN apk add --no-cache git
 # Copy go mod files
 COPY backend/go.mod backend/go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with cache
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy backend source
 COPY backend/ ./

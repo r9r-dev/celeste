@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Optimize CI pipeline: migrate from npm to bun, remove arm64 build, add Docker layer caching (12min -> ~1-2min)'
+time: 2026-01-06T23:49:31.752904+01:00
