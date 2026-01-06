@@ -1,0 +1,30 @@
+services:
+  celeste:
+    image: ghcr.io/r9r-dev/celeste:latest
+    container_name: celeste
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Host proc/sys for system stats
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # Stacks directory
+      - ${STACKS_PATH:-/home/share/docker/dockge/stacks}:/stacks:rw
+    environment:
+      - GIN_MODE=release
+      - PORT=8080
+      - STACKS_PATH=/stacks
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+    # Required for Docker socket access
+    group_add:
+      - ${DOCKER_GID:-999}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
