@@ -19,9 +19,10 @@ type Server struct {
 	composeManager *compose.Manager
 	wsHub          *ws.Hub
 	stacksPath     string
+	staticPath     string
 }
 
-func NewServer(stacksPath string) *Server {
+func NewServer(stacksPath, staticPath string) *Server {
 	gin.SetMode(gin.ReleaseMode)
 
 	dockerClient, err := docker.NewClient()
@@ -40,6 +41,7 @@ func NewServer(stacksPath string) *Server {
 		composeManager: composeManager,
 		wsHub:          wsHub,
 		stacksPath:     stacksPath,
+		staticPath:     staticPath,
 	}
 
 	s.setupMiddleware()
@@ -122,6 +124,16 @@ func (s *Server) setupRoutes() {
 	// WebSocket
 	s.router.GET("/ws", func(c *gin.Context) {
 		ws.HandleWebSocket(s.wsHub, c.Writer, c.Request)
+	})
+
+	// Serve static files (SvelteKit build output)
+	s.router.Static("/_app", s.staticPath+"/_app")
+	s.router.StaticFile("/favicon.ico", s.staticPath+"/favicon.ico")
+	s.router.StaticFile("/robots.txt", s.staticPath+"/robots.txt")
+
+	// SPA fallback - serve index.html for all unmatched routes
+	s.router.NoRoute(func(c *gin.Context) {
+		c.File(s.staticPath + "/index.html")
 	})
 }
 

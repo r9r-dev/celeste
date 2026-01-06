@@ -18,7 +18,12 @@ func main() {
 		stacksPath = "/home/share/docker/dockge/stacks"
 	}
 
-	server := api.NewServer(stacksPath)
+	staticPath := os.Getenv("STATIC_PATH")
+	if staticPath == "" {
+		staticPath = "./static"
+	}
+
+	server := api.NewServer(stacksPath, staticPath)
 
 	log.Printf("Aperture Science Network starting on port %s", port)
 	log.Printf("Stacks path: %s", stacksPath)
