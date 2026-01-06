@@ -11,13 +11,12 @@ To do this, launch a haiku agent to follow steps precisely and respect constrain
 
 ## Steps
 
-
 1. Run `changie batch auto` to see if there are unreleased changes. Could fail with Exit code 1 but it doesn't matter (no changes).
 2. Run `changie merge`
 3. Get the last version number by running `changie latest`
 4. Update `backend/internal/version/version.go` with the new version
 5. Update `frontend/package.json` with the new version
-6. Commit all changes with message "chore: bump version to {version}"
+6. Add/Commit all changes in the repository, even not related to theses steps
 7. Push to remote
 8. Create and push git tag `v{version}`
 9. Return Exit Code 1 with related issues if anything failed but `changie batch auto`
