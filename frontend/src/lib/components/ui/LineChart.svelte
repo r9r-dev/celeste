@@ -32,9 +32,9 @@
 		chart = new Chart(ctx, {
 			type: 'line',
 			data: {
-				labels: chartLabels,
+				labels: [...chartLabels],
 				datasets: [{
-					data: data,
+					data: [...data],
 					borderColor: color,
 					borderWidth: 2,
 					backgroundColor: fill
@@ -92,8 +92,8 @@
 
 	$effect(() => {
 		if (chart) {
-			chart.data.labels = chartLabels;
-			chart.data.datasets[0].data = data;
+			chart.data.labels = [...chartLabels];
+			chart.data.datasets[0].data = [...data];
 			chart.update('none');
 		}
 	});

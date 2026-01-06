@@ -1,0 +1,3 @@
+kind: Fixed
+body: Clone reactive state arrays before passing to Chart.js to prevent Svelte 5 state_descriptors_fixed error
+time: 2026-01-07T00:13:55.438801+01:00
