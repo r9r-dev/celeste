@@ -2,7 +2,14 @@ import type { WebSocketMessage } from './types';
 
 type MessageHandler<T = unknown> = (payload: T) => void;
 
-const WS_URL = 'ws://localhost:8080/ws';
+// Determine WebSocket URL based on environment
+const getWsUrl = (): string => {
+	if (typeof window === 'undefined') return 'ws://localhost:8080/ws';
+	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+	return `${protocol}//${window.location.host}/ws`;
+};
+
+const WS_URL = getWsUrl();
 const RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const MAX_RECONNECT_ATTEMPTS = 10;
