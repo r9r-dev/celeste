@@ -1,0 +1,3 @@
+kind: Changed
+body: Improve error logging middleware to only log client/server errors (4xx, 5xx) and skip success responses (2xx) and redirects (3xx)
+time: 2026-01-07T00:26:35.247355+01:00

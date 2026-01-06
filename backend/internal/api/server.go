@@ -53,16 +53,17 @@ func NewServer(stacksPath, staticPath string) *Server {
 }
 
 func (s *Server) setupMiddleware() {
-	// Custom logger that only logs errors (non-2xx responses)
+	// Custom logger that only logs errors (4xx and 5xx responses)
 	s.router.Use(func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 
 		c.Next()
 
-		// Only log non-2xx responses
+		// Only log client/server errors (4xx, 5xx)
+		// Skip 2xx (success) and 3xx (redirects, cache)
 		status := c.Writer.Status()
-		if status < 200 || status >= 300 {
+		if status >= 400 {
 			latency := time.Since(start)
 			log.Printf("[ERROR] %d | %v | %s %s | %s",
 				status,
