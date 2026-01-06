@@ -4,7 +4,7 @@ FROM oven/bun:1.3.5-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 # Copy package files and lockfile
-COPY frontend/package.json frontend/bun.lockb ./
+COPY frontend/package.json frontend/bun.lock ./
 
 # Install dependencies with cache
 RUN --mount=type=cache,target=/root/.bun/install/cache \
