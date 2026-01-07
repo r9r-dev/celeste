@@ -11,39 +11,46 @@ import (
 	"aperture-science-network/internal/api/handlers"
 	"aperture-science-network/internal/compose"
 	"aperture-science-network/internal/docker"
+	"aperture-science-network/internal/stack"
+	"aperture-science-network/internal/stats"
 	"aperture-science-network/internal/version"
 	"aperture-science-network/internal/ws"
 )
 
 type Server struct {
 	router         *gin.Engine
-	dockerClient   *docker.Client
+	dockerClient   docker.DockerClient
+	statsProvider  stats.Provider
+	stackProvider  stack.Provider
 	composeManager *compose.Manager
 	wsHub          *ws.Hub
-	stacksPath     string
 	staticPath     string
 }
 
-func NewServer(stacksPath, staticPath string) *Server {
+// ServerOptions contains the dependencies for creating a new server
+type ServerOptions struct {
+	StaticPath    string
+	DockerClient  docker.DockerClient
+	StatsProvider stats.Provider
+	StackProvider stack.Provider
+}
+
+func NewServer(opts ServerOptions) *Server {
 	gin.SetMode(gin.ReleaseMode)
 
-	dockerClient, err := docker.NewClient()
-	if err != nil {
-		panic(err)
-	}
-
-	wsHub := ws.NewHub(dockerClient)
+	wsHub := ws.NewHub(opts.DockerClient, opts.StatsProvider)
 	go wsHub.Run()
 
 	composeManager := compose.NewManager()
 
 	s := &Server{
 		router:         gin.New(),
-		dockerClient:   dockerClient,
+		dockerClient:   opts.DockerClient,
+		statsProvider:  opts.StatsProvider,
+		stackProvider:  opts.StackProvider,
 		composeManager: composeManager,
 		wsHub:          wsHub,
-		stacksPath:     stacksPath,
-		staticPath:     staticPath,
+		staticPath:     opts.StaticPath,
 	}
 
 	s.setupMiddleware()
@@ -99,19 +106,19 @@ func (s *Server) setupRoutes() {
 	api := s.router.Group("/api")
 	{
 		// System stats
-		api.GET("/stats", handlers.GetSystemStats)
+		api.GET("/stats", handlers.GetSystemStats(s.statsProvider))
 
 		// Stacks
 		stacks := api.Group("/stacks")
 		{
-			stacks.GET("", handlers.ListStacks(s.stacksPath, s.dockerClient))
-			stacks.GET("/:name", handlers.GetStack(s.stacksPath, s.dockerClient))
-			stacks.POST("/:name/start", handlers.StartStack(s.stacksPath, s.composeManager))
-			stacks.POST("/:name/stop", handlers.StopStack(s.stacksPath, s.composeManager))
-			stacks.POST("/:name/restart", handlers.RestartStack(s.stacksPath, s.composeManager))
-			stacks.POST("/:name/pull", handlers.PullStack(s.stacksPath, s.composeManager))
-			stacks.GET("/:name/compose", handlers.GetComposeFile(s.stacksPath))
-			stacks.PUT("/:name/compose", handlers.UpdateComposeFile(s.stacksPath))
+			stacks.GET("", handlers.ListStacks(s.stackProvider))
+			stacks.GET("/:name", handlers.GetStack(s.stackProvider))
+			stacks.POST("/:name/start", handlers.StartStack(s.stackProvider, s.composeManager))
+			stacks.POST("/:name/stop", handlers.StopStack(s.stackProvider, s.composeManager))
+			stacks.POST("/:name/restart", handlers.RestartStack(s.stackProvider, s.composeManager))
+			stacks.POST("/:name/pull", handlers.PullStack(s.stackProvider, s.composeManager))
+			stacks.GET("/:name/compose", handlers.GetComposeFile(s.stackProvider))
+			stacks.PUT("/:name/compose", handlers.UpdateComposeFile(s.stackProvider))
 		}
 
 		// Containers

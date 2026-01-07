@@ -3,125 +3,57 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"aperture-science-network/internal/compose"
 	"aperture-science-network/internal/docker"
+	"aperture-science-network/internal/stack"
 	"aperture-science-network/internal/stats"
 )
 
 // System Stats
-func GetSystemStats(c *gin.Context) {
-	sysStats, err := stats.GetSystemStats()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+func GetSystemStats(statsProvider stats.Provider) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sysStats, err := statsProvider.GetSystemStats()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, sysStats)
 	}
-	c.JSON(http.StatusOK, sysStats)
-}
-
-// StackInfo represents a compose stack with its status
-type StackInfo struct {
-	Name            string `json:"name"`
-	Path            string `json:"path"`
-	Status          string `json:"status"`
-	Services        int    `json:"services"`
-	RunningServices int    `json:"runningServices"`
 }
 
 // Stacks
-func ListStacks(stacksPath string, dockerClient *docker.Client) gin.HandlerFunc {
+func ListStacks(stackProvider stack.Provider) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		entries, err := os.ReadDir(stacksPath)
+		stacks, err := stackProvider.ListStacks()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-
-		// Get all containers to determine stack status
-		containers, err := dockerClient.ListContainers(c.Request.Context(), true)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		// Group containers by compose project
-		containersByProject := make(map[string][]docker.ContainerInfo)
-		for _, ctr := range containers {
-			if project, ok := ctr.Labels["com.docker.compose.project"]; ok {
-				containersByProject[project] = append(containersByProject[project], ctr)
-			}
-		}
-
-		stacks := make([]StackInfo, 0)
-		for _, entry := range entries {
-			if entry.IsDir() {
-				composePath := filepath.Join(stacksPath, entry.Name(), "docker-compose.yml")
-				if _, err := os.Stat(composePath); err == nil {
-					stackName := entry.Name()
-					projectContainers := containersByProject[stackName]
-
-					// Count running services
-					runningCount := 0
-					for _, ctr := range projectContainers {
-						if ctr.State == "running" {
-							runningCount++
-						}
-					}
-
-					// Determine stack status
-					status := "stopped"
-					totalServices := len(projectContainers)
-					if totalServices > 0 {
-						if runningCount == totalServices {
-							status = "running"
-						} else if runningCount > 0 {
-							status = "partial"
-						}
-					}
-
-					stacks = append(stacks, StackInfo{
-						Name:            stackName,
-						Path:            filepath.Join(stacksPath, stackName),
-						Status:          status,
-						Services:        totalServices,
-						RunningServices: runningCount,
-					})
-				}
-			}
-		}
-
 		c.JSON(http.StatusOK, stacks)
 	}
 }
 
-func GetStack(stacksPath string, dockerClient *docker.Client) gin.HandlerFunc {
+func GetStack(stackProvider stack.Provider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		stackPath := filepath.Join(stacksPath, name)
-
-		if _, err := os.Stat(stackPath); os.IsNotExist(err) {
+		s, err := stackProvider.GetStack(name)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Stack not found"})
 			return
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"name": name,
-			"path": stackPath,
-		})
+		c.JSON(http.StatusOK, s)
 	}
 }
 
-func StartStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFunc {
+func StartStack(stackProvider stack.Provider, composeManager *compose.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		stackPath := filepath.Join(stacksPath, name)
 
-		if _, err := os.Stat(stackPath); os.IsNotExist(err) {
+		if !stackProvider.StackExists(name) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Stack not found"})
 			return
 		}
@@ -129,6 +61,7 @@ func StartStack(stacksPath string, composeManager *compose.Manager) gin.HandlerF
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
 		defer cancel()
 
+		stackPath := stackProvider.GetStackPath(name)
 		if err := composeManager.Up(ctx, stackPath); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -137,12 +70,11 @@ func StartStack(stacksPath string, composeManager *compose.Manager) gin.HandlerF
 	}
 }
 
-func StopStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFunc {
+func StopStack(stackProvider stack.Provider, composeManager *compose.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		stackPath := filepath.Join(stacksPath, name)
 
-		if _, err := os.Stat(stackPath); os.IsNotExist(err) {
+		if !stackProvider.StackExists(name) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Stack not found"})
 			return
 		}
@@ -150,6 +82,7 @@ func StopStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFu
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
 		defer cancel()
 
+		stackPath := stackProvider.GetStackPath(name)
 		if err := composeManager.Down(ctx, stackPath); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -158,12 +91,11 @@ func StopStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFu
 	}
 }
 
-func RestartStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFunc {
+func RestartStack(stackProvider stack.Provider, composeManager *compose.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		stackPath := filepath.Join(stacksPath, name)
 
-		if _, err := os.Stat(stackPath); os.IsNotExist(err) {
+		if !stackProvider.StackExists(name) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Stack not found"})
 			return
 		}
@@ -171,6 +103,7 @@ func RestartStack(stacksPath string, composeManager *compose.Manager) gin.Handle
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
 		defer cancel()
 
+		stackPath := stackProvider.GetStackPath(name)
 		if err := composeManager.Restart(ctx, stackPath); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -179,12 +112,11 @@ func RestartStack(stacksPath string, composeManager *compose.Manager) gin.Handle
 	}
 }
 
-func PullStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFunc {
+func PullStack(stackProvider stack.Provider, composeManager *compose.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		stackPath := filepath.Join(stacksPath, name)
 
-		if _, err := os.Stat(stackPath); os.IsNotExist(err) {
+		if !stackProvider.StackExists(name) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Stack not found"})
 			return
 		}
@@ -192,6 +124,7 @@ func PullStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFu
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
 		defer cancel()
 
+		stackPath := stackProvider.GetStackPath(name)
 		if err := composeManager.Pull(ctx, stackPath); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -200,27 +133,23 @@ func PullStack(stacksPath string, composeManager *compose.Manager) gin.HandlerFu
 	}
 }
 
-func GetComposeFile(stacksPath string) gin.HandlerFunc {
+func GetComposeFile(stackProvider stack.Provider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		composePath := filepath.Join(stacksPath, name, "docker-compose.yml")
-
-		content, err := os.ReadFile(composePath)
+		content, err := stackProvider.GetComposeFile(name)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Compose file not found"})
 			return
 		}
-
 		c.JSON(http.StatusOK, gin.H{
-			"content": string(content),
+			"content": content,
 		})
 	}
 }
 
-func UpdateComposeFile(stacksPath string) gin.HandlerFunc {
+func UpdateComposeFile(stackProvider stack.Provider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		composePath := filepath.Join(stacksPath, name, "docker-compose.yml")
 
 		var body struct {
 			Content string `json:"content"`
@@ -231,7 +160,7 @@ func UpdateComposeFile(stacksPath string) gin.HandlerFunc {
 			return
 		}
 
-		if err := os.WriteFile(composePath, []byte(body.Content), 0644); err != nil {
+		if err := stackProvider.UpdateComposeFile(name, body.Content); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -241,7 +170,7 @@ func UpdateComposeFile(stacksPath string) gin.HandlerFunc {
 }
 
 // Containers
-func ListContainers(dockerClient *docker.Client) gin.HandlerFunc {
+func ListContainers(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		all := c.Query("all") == "true"
 		containers, err := dockerClient.ListContainers(c.Request.Context(), all)
@@ -253,7 +182,7 @@ func ListContainers(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func GetContainer(dockerClient *docker.Client) gin.HandlerFunc {
+func GetContainer(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		container, err := dockerClient.GetContainer(c.Request.Context(), id)
@@ -265,7 +194,7 @@ func GetContainer(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func StartContainer(dockerClient *docker.Client) gin.HandlerFunc {
+func StartContainer(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := dockerClient.StartContainer(c.Request.Context(), id); err != nil {
@@ -276,7 +205,7 @@ func StartContainer(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func StopContainer(dockerClient *docker.Client) gin.HandlerFunc {
+func StopContainer(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := dockerClient.StopContainer(c.Request.Context(), id); err != nil {
@@ -287,7 +216,7 @@ func StopContainer(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func RestartContainer(dockerClient *docker.Client) gin.HandlerFunc {
+func RestartContainer(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := dockerClient.RestartContainer(c.Request.Context(), id); err != nil {
@@ -298,7 +227,7 @@ func RestartContainer(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func GetContainerLogs(dockerClient *docker.Client) gin.HandlerFunc {
+func GetContainerLogs(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		tail := c.DefaultQuery("tail", "100")
@@ -312,7 +241,7 @@ func GetContainerLogs(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func GetContainerStats(dockerClient *docker.Client) gin.HandlerFunc {
+func GetContainerStats(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		stats, err := dockerClient.GetContainerStats(c.Request.Context(), id)
@@ -325,7 +254,7 @@ func GetContainerStats(dockerClient *docker.Client) gin.HandlerFunc {
 }
 
 // Volumes
-func ListVolumes(dockerClient *docker.Client) gin.HandlerFunc {
+func ListVolumes(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		volumes, err := dockerClient.ListVolumes(c.Request.Context())
 		if err != nil {
@@ -336,7 +265,7 @@ func ListVolumes(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func CreateVolume(dockerClient *docker.Client) gin.HandlerFunc {
+func CreateVolume(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var body struct {
 			Name   string            `json:"name"`
@@ -362,7 +291,7 @@ func CreateVolume(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func DeleteVolume(dockerClient *docker.Client) gin.HandlerFunc {
+func DeleteVolume(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
 		force := c.Query("force") == "true"
@@ -376,7 +305,7 @@ func DeleteVolume(dockerClient *docker.Client) gin.HandlerFunc {
 }
 
 // Networks
-func ListNetworks(dockerClient *docker.Client) gin.HandlerFunc {
+func ListNetworks(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		networks, err := dockerClient.ListNetworks(c.Request.Context())
 		if err != nil {
@@ -387,7 +316,7 @@ func ListNetworks(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func CreateNetwork(dockerClient *docker.Client) gin.HandlerFunc {
+func CreateNetwork(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var body struct {
 			Name   string `json:"name"`
@@ -412,7 +341,7 @@ func CreateNetwork(dockerClient *docker.Client) gin.HandlerFunc {
 	}
 }
 
-func DeleteNetwork(dockerClient *docker.Client) gin.HandlerFunc {
+func DeleteNetwork(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
@@ -425,7 +354,7 @@ func DeleteNetwork(dockerClient *docker.Client) gin.HandlerFunc {
 }
 
 // Images
-func ListImages(dockerClient *docker.Client) gin.HandlerFunc {
+func ListImages(dockerClient docker.DockerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		images, err := dockerClient.ListImages(c.Request.Context())
 		if err != nil {

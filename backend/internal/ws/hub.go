@@ -14,6 +14,11 @@ import (
 	"aperture-science-network/internal/stats"
 )
 
+// StatsProvider interface for getting system stats
+type StatsProvider interface {
+	GetSystemStats() (*stats.SystemStats, error)
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -34,21 +39,23 @@ type Client struct {
 }
 
 type Hub struct {
-	clients      map[*Client]bool
-	broadcast    chan []byte
-	register     chan *Client
-	unregister   chan *Client
-	mutex        sync.RWMutex
-	dockerClient *docker.Client
+	clients       map[*Client]bool
+	broadcast     chan []byte
+	register      chan *Client
+	unregister    chan *Client
+	mutex         sync.RWMutex
+	dockerClient  docker.DockerClient
+	statsProvider StatsProvider
 }
 
-func NewHub(dockerClient *docker.Client) *Hub {
+func NewHub(dockerClient docker.DockerClient, statsProvider StatsProvider) *Hub {
 	return &Hub{
-		clients:      make(map[*Client]bool),
-		broadcast:    make(chan []byte),
-		register:     make(chan *Client),
-		unregister:   make(chan *Client),
-		dockerClient: dockerClient,
+		clients:       make(map[*Client]bool),
+		broadcast:     make(chan []byte),
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		dockerClient:  dockerClient,
+		statsProvider: statsProvider,
 	}
 }
 
@@ -102,7 +109,7 @@ func (h *Hub) broadcastSystemStats() {
 			continue
 		}
 
-		sysStats, err := stats.GetSystemStats()
+		sysStats, err := h.statsProvider.GetSystemStats()
 		if err != nil {
 			log.Printf("Error getting system stats: %v", err)
 			continue

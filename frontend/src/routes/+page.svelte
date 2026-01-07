@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { Panel, ProgressBar, StatusIndicator, DataLabel, LineChart, Button } from '$lib/components/ui';
 	import { systemStore } from '$lib/stores/system.svelte';
 	import { dockerStore } from '$lib/stores/docker.svelte';
@@ -71,12 +71,15 @@
 	let selectedStack = $state<StackWithContainers | null>(null);
 
 	// Auto-select first stack when data loads
+	// Use untrack to read selectedStack without tracking it as a dependency
+	// This prevents an infinite loop (reading and writing the same state in an effect)
 	$effect(() => {
-		if (!selectedStack && stacksWithContainers.length > 0) {
+		const current = untrack(() => selectedStack);
+		if (!current && stacksWithContainers.length > 0) {
 			selectedStack = stacksWithContainers[0];
-		} else if (selectedStack) {
+		} else if (current) {
 			// Update selected stack with new data
-			const updated = stacksWithContainers.find(s => s.name === selectedStack!.name);
+			const updated = stacksWithContainers.find(s => s.name === current.name);
 			if (updated) {
 				selectedStack = updated;
 			}

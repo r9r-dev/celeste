@@ -4,7 +4,7 @@ Interface d'administration Docker avec esthetique sci-fi "Mission Control".
 
 ## Stack technique
 
-- **Frontend**: SvelteKit 5 + Svelte 5 runes + Tailwind CSS v4 + TypeScript
+- **Frontend**: SvelteKit 5 + Svelte 5 runes + Tailwind CSS v4 + TypeScript + Bun
 - **Backend**: Go 1.24 + Gin + gorilla/websocket + Docker SDK v27.5.1
 - **Stats systeme**: gopsutil (avec HOST_PROC/HOST_SYS pour deploiement containerise)
 
@@ -51,10 +51,10 @@ go get -u ./... && go mod tidy   # Update deps
 
 ```bash
 cd frontend
-npm install      # Install deps
-npm run dev      # Dev server (:5173)
-npm run build    # Build production
-npm run check    # Type check
+bun install      # Install deps
+bun run dev      # Dev server (:5173)
+bun run build    # Build production
+bun run check    # Type check
 ```
 
 ### Docker
@@ -78,6 +78,7 @@ cd docker-compose && docker compose up -d  # Deploy
 | HOST_PROC | /proc | Mount /proc hote |
 | HOST_SYS | /sys | Mount /sys hote |
 | GIN_MODE | debug | Mode Gin |
+| DEBUG_MODE | false | Active les donnees mock (pas besoin de Docker) |
 
 ## API Endpoints
 

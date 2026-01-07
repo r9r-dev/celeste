@@ -1,0 +1,3 @@
+kind: Added
+body: Add proxy configuration in vite.config.ts to route /api, /ws, and /health endpoints to backend during development
+time: 2026-01-07T23:08:42.538279+01:00
