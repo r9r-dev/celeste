@@ -1,3 +1,0 @@
-kind: Changed
-body: Refactor API handlers and server to use StackProvider interface instead of direct filesystem access, enabling dependency injection and better testing
-time: 2026-01-07T23:08:43.863287+01:00

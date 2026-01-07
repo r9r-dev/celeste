@@ -1,3 +1,0 @@
-kind: Added
-body: Add StackProvider interface and implementations (filesystem and mock) to abstract stack operations for better testability and dependency injection
-time: 2026-01-07T23:08:41.691314+01:00
